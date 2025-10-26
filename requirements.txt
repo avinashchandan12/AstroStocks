@@ -10,3 +10,4 @@ openai>=1.0.0
 pyswisseph==2.10.3.2
 requests==2.31.0
 ratelimit==2.2.1
+pytz==2023.3

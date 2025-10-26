@@ -35,6 +35,8 @@ async def analyze_market(
     try:
         # Use provided data or fallback to mock data
         stocks = request.stocks if request.stocks else get_mock_stock_data()
+        print("Stocks>>>>>>>>>>>", stocks)
+        print("mock data>>>>>>>>>>>", get_mock_stock_data())
         transits_data = request.transits if request.transits else None
         
         # Convert transits to list format if needed
@@ -81,6 +83,7 @@ async def analyze_market(
 async def analyze_market_enhanced(
     request: AnalyzeRequest,
     use_real_data: bool = Query(True, description="Use real market data from Alpha Vantage"),
+    
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """

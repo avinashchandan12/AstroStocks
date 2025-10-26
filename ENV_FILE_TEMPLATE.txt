@@ -21,3 +21,17 @@ USE_REAL_EPHEMERIS=true
 EPHEMERIS_PATH=
 DEFAULT_LOCATION_LAT=28.6139
 DEFAULT_LOCATION_LON=77.2090
+
+# Ayanamsa Configuration (for Vedic Astrology)
+# Valid values: "lahiri" (default, standard in India), "raman", "krishnamurti"
+# This determines which sidereal correction method to use for converting tropical to sidereal coordinates
+AYANAMSA=lahiri
+
+# Default Location Configuration (for Predictions API)
+# Default location when not specified in prediction requests
+DEFAULT_LOCATION_LAT=28.6139  # Delhi latitude
+DEFAULT_LOCATION_LON=77.2090  # Delhi longitude
+DEFAULT_TIMEZONE=Asia/Kolkata  # India Standard Time
+
+# Debug Configuration
+DEBUG_DEEPSEEK_REQUESTS=true  # Set to false to disable request/response logging

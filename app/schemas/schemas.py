@@ -121,3 +121,60 @@ class EnhancedAnalyzeResponse(BaseModel):
     overall_sentiment: str
     timestamp: str
 
+
+# Prediction API Schemas
+class PredictRequest(BaseModel):
+    """Request schema for market prediction API"""
+    date: Optional[str] = None  # ISO format date (YYYY-MM-DD)
+    time: Optional[str] = None  # Time in HH:MM:SS format
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+
+
+class LocationInfo(BaseModel):
+    """Location information for predictions"""
+    latitude: float
+    longitude: float
+    timezone: str
+
+
+class PlanetaryTransit(BaseModel):
+    """Planetary transit information"""
+    planet: str
+    longitude: float
+    latitude: float
+    sign: str
+    degree_in_sign: float
+    dignity: str
+    retrograde: bool
+    motion: str
+    speed: float
+
+
+class KeyInfluence(BaseModel):
+    """Key astrological influence"""
+    planet: str
+    sign: str
+    influence_type: str
+    strength: str
+    description: str
+
+
+class MarketPrediction(BaseModel):
+    """Market prediction results"""
+    overall_sentiment: str
+    sector_predictions: List[Dict[str, Any]]
+    key_influences: List[KeyInfluence]
+    ai_analysis: str
+
+
+class PredictResponse(BaseModel):
+    """Response schema for market prediction API"""
+    prediction_date: str
+    location: LocationInfo
+    planetary_transits: List[PlanetaryTransit]
+    market_prediction: MarketPrediction
+    past_market_data: Optional[List[Dict[str, Any]]] = None
+    confidence: float
+

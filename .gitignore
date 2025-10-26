@@ -54,3 +54,6 @@ alembic/versions/__pycache__/
 # Docker
 docker-compose.override.yml
 
+
+# Ephemeris
+ephe/

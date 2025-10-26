@@ -77,6 +77,8 @@ class AlphaVantageService:
         for attempt in range(retries):
             try:
                 response = requests.get(self.base_url, params=params, timeout=10)
+
+                print("Stock JSON respons>>>>>>>>>>>", response.json())
                 response.raise_for_status()
                 
                 data = response.json()

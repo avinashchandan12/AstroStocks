@@ -79,7 +79,21 @@ class EphemerisService:
             ephe_path = os.getenv("EPHEMERIS_PATH", "")
             if ephe_path:
                 swe.set_ephe_path(ephe_path)
-            print("✅ Swiss Ephemeris initialized")
+            
+            # Configure Ayanamsa for Vedic (Sidereal) astrology
+            ayanamsa_type = os.getenv("AYANAMSA", "lahiri").lower()
+            
+            if ayanamsa_type == "raman":
+                swe.set_sid_mode(swe.SIDM_RAMAN)
+                ayanamsa_name = "Raman"
+            elif ayanamsa_type == "krishnamurti":
+                swe.set_sid_mode(swe.SIDM_KRISHNAMURTI)
+                ayanamsa_name = "Krishnamurti"
+            else:
+                swe.set_sid_mode(swe.SIDM_LAHIRI)
+                ayanamsa_name = "Lahiri"
+            
+            print(f"✅ Swiss Ephemeris initialized with {ayanamsa_name} Ayanamsa (Sidereal mode)")
     
     def datetime_to_julian_day(self, dt: datetime) -> float:
         """Convert datetime to Julian Day Number"""
@@ -163,7 +177,14 @@ class EphemerisService:
             # Special handling for Ketu (opposite of Rahu)
             if planet == "Ketu":
                 rahu_result = swe.calc_ut(jd, PLANETS['Rahu'])
-                longitude = (rahu_result[0][0] + 180) % 360
+                rahu_long = rahu_result[0][0]
+                
+                # Apply sidereal correction to Rahu first
+                ayanamsa = swe.get_ayanamsa_ut(jd)
+                rahu_long = (rahu_long - ayanamsa) % 360
+                
+                # Ketu is opposite of Rahu
+                longitude = (rahu_long + 180) % 360
                 latitude = -rahu_result[0][1]
                 speed = rahu_result[0][3]
             else:
@@ -171,6 +192,10 @@ class EphemerisService:
                 longitude = result[0][0]
                 latitude = result[0][1]
                 speed = result[0][3]
+                
+                # Apply sidereal correction for Vedic astrology (including Rahu)
+                ayanamsa = swe.get_ayanamsa_ut(jd)
+                longitude = (longitude - ayanamsa) % 360
             
             sign = self.get_zodiac_sign(longitude)
             dignity = self.get_planetary_dignity(planet, sign)
