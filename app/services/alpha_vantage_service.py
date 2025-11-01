@@ -43,10 +43,10 @@ class AlphaVantageService:
     def __init__(self):
         self.api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "demo")
         self.base_url = "https://www.alphavantage.co/query"
-        self.rate_limiter = RateLimiter(calls=5, period=60)  # 5 calls per minute
-        self.nse_suffix = ".BSE"  # BSE suffix for Indian stocks
+        self.rate_limiter = RateLimiter(calls=5, period=60)
+        self.nse_suffix = ".BSE"
         self.daily_call_count = 0
-        self.daily_call_limit = 25  # Free tier limit
+        self.daily_call_limit = 25
         
         if self.api_key == "demo":
             print("⚠️  Using Alpha Vantage demo API key. Set ALPHA_VANTAGE_API_KEY for production.")

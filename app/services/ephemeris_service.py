@@ -12,7 +12,7 @@ try:
     SWISSEPH_AVAILABLE = True
 except ImportError:
     SWISSEPH_AVAILABLE = False
-    print("⚠️  pyswisseph not installed. Using mock ephemeris data.")
+    print("⚠️  pyswisseph not installed. Real ephemeris calculations will be unavailable.")
 
 
 # Planet constants from Swiss Ephemeris
@@ -282,7 +282,7 @@ class EphemerisService:
         """
         Get planetary transits in the format expected by the application
         
-        This is the main function to replace mock data
+        Returns real planetary transit data from Swiss Ephemeris calculations
         """
         positions = self.get_all_planetary_positions(dt)
         return self.format_for_api(positions)

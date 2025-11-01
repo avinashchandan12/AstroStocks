@@ -10,13 +10,13 @@ from datetime import datetime
 from app.database.config import get_db
 from app.schemas.schemas import Transit, SectorPrediction
 from app.models import models
-from app.services.mock_data import get_mock_planetary_transits, get_mock_stock_data
 
 # Try to import ephemeris service
 try:
     from app.services.ephemeris_service import (
         get_current_planetary_positions,
         get_moon_nakshatra,
+        get_planetary_transits,
         ephemeris_service,
         SWISSEPH_AVAILABLE
     )
@@ -24,6 +24,7 @@ except ImportError:
     SWISSEPH_AVAILABLE = False
     get_current_planetary_positions = None
     get_moon_nakshatra = None
+    get_planetary_transits = None
     ephemeris_service = None
 
 router = APIRouter(tags=["Data"])
@@ -34,15 +35,21 @@ async def get_planetary_transits() -> dict:
     """
     Get current planetary transit data
     
-    Returns mock transit data showing current planetary positions
-    in various zodiac signs.
+    Returns real transit data showing current planetary positions
+    from Swiss Ephemeris.
     """
-    transits = get_mock_planetary_transits()
+    if not SWISSEPH_AVAILABLE or not get_planetary_transits:
+        raise HTTPException(
+            status_code=503,
+            detail="Swiss Ephemeris not available. Install pyswisseph to use this endpoint."
+        )
+    
+    transits = get_planetary_transits()
     
     return {
         "transits": transits,
         "timestamp": datetime.utcnow().isoformat(),
-        "note": "Mock data for MVP - will be replaced with real ephemeris data"
+        "source": "Swiss Ephemeris"
     }
 
 
@@ -72,42 +79,6 @@ async def get_sector_trends(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch trends: {str(e)}")
-
-
-@router.get("/stocks")
-async def get_stocks(
-    sector: Optional[str] = Query(None, description="Filter stocks by sector")
-) -> dict:
-    """
-    Get mock stock market data
-    
-    Returns sample stock data across various sectors for testing.
-    """
-    stocks = get_mock_stock_data()
-    
-    if sector:
-        stocks = [s for s in stocks if s.get("sector") == sector]
-    
-    return {
-        "stocks": stocks,
-        "count": len(stocks),
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-
-@router.get("/sectors")
-async def get_sectors() -> dict:
-    """
-    Get list of all available sectors
-    """
-    stocks = get_mock_stock_data()
-    sectors = list(set(s.get("sector") for s in stocks))
-    sectors.sort()
-    
-    return {
-        "sectors": sectors,
-        "count": len(sectors)
-    }
 
 
 @router.get("/planetary-positions/live")

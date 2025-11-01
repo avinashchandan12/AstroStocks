@@ -11,7 +11,7 @@ import os
 from app.database.config import get_db
 from app.schemas.schemas import AnalyzeRequest, AnalyzeResponse, EnhancedAnalyzeResponse
 from app.services.ai_service import AIService
-from app.services.mock_data import get_mock_stock_data, get_mock_planetary_transits
+from app.services.ephemeris_service import get_planetary_transits
 from app.services.market_data_cache import MarketDataCacheService
 from app.config.stock_config import get_tracked_stocks, use_real_market_data
 from app.models.models import SectorPrediction
@@ -30,13 +30,17 @@ async def analyze_market(
     Combines stock market data with planetary transits to generate
     AI-driven astrological predictions for various sectors.
     
-    If stock or transit data is not provided, mock data will be used.
+    Requires stock and transit data to be provided in the request.
     """
     try:
-        # Use provided data or fallback to mock data
-        stocks = request.stocks if request.stocks else get_mock_stock_data()
-        print("Stocks>>>>>>>>>>>", stocks)
-        print("mock data>>>>>>>>>>>", get_mock_stock_data())
+        # Require stocks to be provided
+        if not request.stocks:
+            raise HTTPException(
+                status_code=400,
+                detail="Stock data is required. Please provide stocks in the request."
+            )
+        
+        stocks = request.stocks
         transits_data = request.transits if request.transits else None
         
         # Convert transits to list format if needed
@@ -45,7 +49,14 @@ async def analyze_market(
         elif transits_data and isinstance(transits_data, list):
             transits = transits_data
         else:
-            transits = get_mock_planetary_transits()
+            # Get real transits from ephemeris service
+            transits = get_planetary_transits()
+            
+            if not transits:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Planetary transit data unavailable. Please install pyswisseph and configure ephemeris."
+                )
         
         # Initialize AI service
         ai_service = AIService()
@@ -75,6 +86,8 @@ async def analyze_market(
             timestamp=datetime.fromisoformat(analysis_result["timestamp"])
         )
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
@@ -101,7 +114,7 @@ async def analyze_market_enhanced(
     4. Vedic astrology engine for sector analysis
     """
     try:
-        # Get stock data (real or mock)
+        # Get stock data (real or from request)
         if use_real_data and use_real_market_data():
             print("📊 Using real market data from Alpha Vantage...")
             cache_service = MarketDataCacheService(db)
@@ -116,11 +129,19 @@ async def analyze_market_enhanced(
             stocks = cache_service.get_stock_data(tracked_symbols)
             
             if not stocks:
-                print("⚠️  No stock data available, falling back to mock data")
-                stocks = get_mock_stock_data()
+                raise HTTPException(
+                    status_code=503,
+                    detail="No stock data available from market data service."
+                )
         else:
-            print("📊 Using mock stock data")
-            stocks = request.stocks if request.stocks else get_mock_stock_data()
+            # Require stocks from request if not using real data
+            if not request.stocks:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Stock data is required. Please provide stocks in the request or enable real market data."
+                )
+            print("📊 Using stock data from request")
+            stocks = request.stocks
         
         # Get transit data (real ephemeris)
         transits_data = request.transits if request.transits else None
@@ -129,7 +150,14 @@ async def analyze_market_enhanced(
         elif transits_data and isinstance(transits_data, list):
             transits = transits_data
         else:
-            transits = get_mock_planetary_transits()  # This uses real ephemeris if available
+            # Get real transits from ephemeris service
+            transits = get_planetary_transits()
+            
+            if not transits:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Planetary transit data unavailable. Please install pyswisseph and configure ephemeris."
+                )
         
         print(f"🌟 Analyzing {len(stocks)} stocks with {len(transits)} planetary transits...")
         

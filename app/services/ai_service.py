@@ -1,6 +1,6 @@
 """
 AI Service Layer - Integrates Astrology Engine with AI Models
-Supports both DeepSeek API and mock responses
+Supports DeepSeek API for market predictions
 """
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -8,16 +8,15 @@ import os
 import json
 
 from app.services.astrology_engine import AstrologyEngine
-from app.services.mock_data import get_stocks_by_sector
 
-# Try to import OpenAI client, fall back gracefully if not available
+# Try to import OpenAI client
 try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None  # Define as None for type hints
-    print("⚠️  OpenAI package not installed. Using mock AI responses.")
+    print("⚠️  OpenAI package not installed. API features will be unavailable.")
 
 # Initialize DeepSeek client (OpenAI-compatible) if available
 deepseek_client: Optional[OpenAI] = None
@@ -32,10 +31,10 @@ if OPENAI_AVAILABLE and USE_AI_API:
         )
         print("✅ DeepSeek API client initialized")
     else:
-        print("⚠️  DeepSeek API key not configured. Using mock AI responses.")
+        print("⚠️  DeepSeek API key not configured. API features will be unavailable.")
 else:
     if USE_AI_API:
-        print("⚠️  AI API disabled or OpenAI package not installed. Using mock AI responses.")
+        print("⚠️  AI API disabled or OpenAI package not installed. API features will be unavailable.")
 
 # Knowledge Base Prompt Template
 KNOWLEDGE_BASE_PROMPT = """
@@ -98,7 +97,7 @@ Focus on how planetary energies, elements, and aspects symbolically influence ec
 
 ---
 
-### 🜂 ELEMENTAL-BASED INDUSTRY MATRIX:
+### ELEMENTAL-BASED INDUSTRY MATRIX:
 
 | Element | Signs | Economic Nature | Favored Industries |
 |----------|--------|------------------|--------------------|
@@ -109,7 +108,7 @@ Focus on how planetary energies, elements, and aspects symbolically influence ec
 
 ---
 
-### ⚖️ WEIGHTAGE SYSTEM:
+### WEIGHTAGE SYSTEM:
 
 | Planet | Influence % | Description |
 |---------|--------------|-------------|
@@ -154,7 +153,7 @@ Focus on how planetary energies, elements, and aspects symbolically influence ec
 
 ---
 
-### 🧘 BEHAVIOR RULES:
+### BEHAVIOR RULES:
 - Strictly adhere to **Vedic Astrology** principles (Parashara, Varahamihira, and Jaimini foundations).
 - Use **symbolic, not causal** correlations.
 - Keep tone analytical, **non-conversational**.
@@ -169,7 +168,7 @@ Focus on how planetary energies, elements, and aspects symbolically influence ec
 class AIService:
     """
     AI Service for generating astrology-based market predictions
-    Supports both DeepSeek API and mock responses
+    Uses DeepSeek API for market predictions
     """
     
     def __init__(self, use_api: bool = None):
@@ -177,6 +176,13 @@ class AIService:
         self.knowledge_base = KNOWLEDGE_BASE_PROMPT
         self.use_api = use_api if use_api is not None else (deepseek_client is not None)
         self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    
+    def _get_top_stocks_by_sector(self, sector: str, stocks: List[Dict[str, Any]]) -> List[str]:
+        """Get top stock symbols for a given sector"""
+        sector_stocks = [s for s in stocks if s.get("sector") == sector]
+        # Sort by 6-month returns
+        sector_stocks.sort(key=lambda x: x.get("past_6m_return", 0), reverse=True)
+        return [s["symbol"] for s in sector_stocks[:3]]
     
     def analyze_market(
         self, 
@@ -196,9 +202,9 @@ class AIService:
             prediction = self.astrology_engine.get_sector_prediction(sector, influences)
             
             # Add top stocks for this sector
-            top_stocks = get_stocks_by_sector(sector, stocks)
+            top_stocks = self._get_top_stocks_by_sector(sector, stocks)
             
-            # Enhance with AI reasoning (mock for MVP)
+            # Enhance with AI reasoning
             enhanced_prediction = self._enhance_with_ai_reasoning(
                 prediction, 
                 influences,
@@ -233,7 +239,7 @@ class AIService:
         sector = prediction["sector"]
         trend = prediction["trend"]
         
-        # Mock AI enhancement
+        # AI enhancement
         planetary_summary = self._summarize_planetary_influences(influences)
         
         # Build enhanced prediction
@@ -270,18 +276,18 @@ class AIService:
         influences: List[Dict[str, Any]]
     ) -> str:
         """
-        Generate AI insights using DeepSeek API only (no mock fallback)
+        Generate AI insights using DeepSeek API
         """
-        # Always try to use DeepSeek API first
+        # Use DeepSeek API
         if self.use_api and deepseek_client:
             try:
                 return self._generate_ai_insights_from_api(sector, trend, influences)
             except Exception as e:
                 print(f"⚠️  DeepSeek API call failed: {e}")
-                raise e  # Don't fall back to mock, raise the error
+                raise e
         
-        # If API is not available, raise error instead of using mock
-        raise Exception("DeepSeek API not available and mock responses are disabled")
+        # If API is not available, raise error
+        raise Exception("DeepSeek API not available")
     
     def _generate_ai_insights_from_api(
         self,
@@ -366,37 +372,6 @@ Return your response as a JSON object with the following structure:
                 print(f"Error: {e}")
                 print("=" * 60)
             raise e
-    
-    def _generate_mock_insights(
-        self,
-        sector: str,
-        trend: str,
-        influences: List[Dict[str, Any]]
-    ) -> str:
-        """
-        Generate mock AI insights (used when API is not available)
-        """
-        insights = []
-        
-        # Trend-based insight
-        if trend == "Bullish":
-            insights.append(f"Strong positive momentum expected in {sector} sector")
-        elif trend == "Bearish":
-            insights.append(f"Caution advised for {sector} sector investments")
-        else:
-            insights.append(f"Mixed signals for {sector} sector, wait-and-watch approach")
-        
-        # Planet-based insights
-        for inf in influences[:2]:
-            planet = inf["planet"]
-            influence_type = inf["influence_type"]
-            
-            if "Positive" in influence_type:
-                insights.append(f"{planet}'s favorable position supports growth")
-            elif "Challenging" in influence_type:
-                insights.append(f"{planet}'s placement suggests caution")
-        
-        return ". ".join(insights) + "."
     
     def _calculate_overall_sentiment(self, predictions: List[Dict[str, Any]]) -> str:
         """Calculate overall market sentiment from sector predictions"""
@@ -824,16 +799,16 @@ Return your response as a JSON object with the following structure:
     ) -> str:
         """Generate comprehensive AI analysis of market outlook"""
         
-        # Always try to use DeepSeek API first
+        # Use DeepSeek API
         if self.use_api and deepseek_client:
             try:
                 return self._generate_overall_analysis_from_api(transits, sector_predictions, prediction_date)
             except Exception as e:
                 print(f"⚠️  DeepSeek API call failed: {e}")
-                raise e  # Don't fall back to mock, raise the error
+                raise e
         
-        # If API is not available, raise error instead of using mock
-        raise Exception("DeepSeek API not available and mock responses are disabled")
+        # If API is not available, raise error
+        raise Exception("DeepSeek API not available")
     
     def _generate_overall_analysis_from_api(
         self,
@@ -951,46 +926,4 @@ Return your response as a JSON object with the following structure:
                 print(f"Error: {e}")
                 print("=" * 80)
             raise e
-    
-    def _generate_mock_overall_analysis(
-        self,
-        transits: List[Dict[str, Any]],
-        sector_predictions: List[Dict[str, Any]],
-        prediction_date: datetime
-    ) -> str:
-        """Generate mock overall analysis when API is not available"""
-        
-        # Count bullish vs bearish sectors
-        bullish_sectors = [sp for sp in sector_predictions if sp["trend"] == "Bullish"]
-        bearish_sectors = [sp for sp in sector_predictions if sp["trend"] == "Bearish"]
-        
-        analysis_parts = []
-        
-        # Overall sentiment
-        if len(bullish_sectors) > len(bearish_sectors):
-            analysis_parts.append(f"The planetary transits for {prediction_date.strftime('%Y-%m-%d')} indicate a generally positive market outlook with {len(bullish_sectors)} sectors showing bullish tendencies.")
-        elif len(bearish_sectors) > len(bullish_sectors):
-            analysis_parts.append(f"Current planetary positions suggest caution in the market with {len(bearish_sectors)} sectors showing bearish trends.")
-        else:
-            analysis_parts.append(f"The astrological configuration suggests mixed market signals with balanced sector performance.")
-        
-        # Key planetary influences
-        exalted_planets = [t for t in transits if t["dignity"] == "Exalted"]
-        retrograde_planets = [t for t in transits if t["retrograde"]]
-        
-        if exalted_planets:
-            analysis_parts.append(f"Notable positive influences include {', '.join([t['planet'] for t in exalted_planets])} in exalted positions, suggesting favorable conditions for growth-oriented investments.")
-        
-        if retrograde_planets:
-            analysis_parts.append(f"Caution is advised due to retrograde motion of {', '.join([t['planet'] for t in retrograde_planets])}, which may indicate potential market volatility or delays.")
-        
-        # Sector-specific insights
-        if bullish_sectors:
-            top_sectors = [sp["sector"] for sp in bullish_sectors[:2]]
-            analysis_parts.append(f"Particular strength is expected in {', '.join(top_sectors)} sectors based on current planetary alignments.")
-        
-        # Investment recommendations
-        analysis_parts.append("Investors are advised to maintain a balanced approach, considering both the favorable planetary influences and potential volatility indicators. Long-term positions may benefit from current astrological configurations.")
-        
-        return " ".join(analysis_parts)
 

@@ -67,11 +67,11 @@ class SectorPrediction(SectorPredictionBase):
 class AnalyzeRequest(BaseModel):
     stocks: Optional[List[Dict[str, Any]]] = Field(
         None, 
-        description="Optional list of stock data. If not provided, mock data will be used."
+        description="List of stock data. Required for analysis."
     )
     transits: Optional[Dict[str, Any]] = Field(
         None,
-        description="Optional planetary transit data. If not provided, mock data will be used."
+        description="Optional planetary transit data. If not provided, real ephemeris data will be fetched."
     )
 
 

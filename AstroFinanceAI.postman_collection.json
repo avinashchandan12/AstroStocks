@@ -1,0 +1,389 @@
+{
+  "info": {
+    "name": "AstroFinanceAI API",
+    "description": "Complete API collection for AstroFinanceAI - Combining Vedic Astrology with Stock Market Analytics",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "astrofinance-api"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Base Endpoints",
+      "item": [
+        {
+          "name": "Root - API Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Get API information and available endpoints"
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analysis",
+      "item": [
+        {
+          "name": "Analyze Market (Basic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stocks\": [\n    {\n      \"symbol\": \"RELIANCE\",\n      \"sector\": \"Oil & Gas\",\n      \"past_6m_return\": 15.5,\n      \"volatility\": \"Medium\",\n      \"pe_ratio\": 24.2,\n      \"price_trend\": \"Upward\",\n      \"news_sentiment\": \"Positive\"\n    },\n    {\n      \"symbol\": \"TCS\",\n      \"sector\": \"Technology\",\n      \"past_6m_return\": 8.7,\n      \"volatility\": \"Low\",\n      \"pe_ratio\": 28.3,\n      \"price_trend\": \"Upward\",\n      \"news_sentiment\": \"Positive\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["analyze"]
+            },
+            "description": "Combines stock market data with planetary transits to generate AI-driven predictions"
+          },
+          "response": []
+        },
+        {
+          "name": "Analyze Market (Enhanced)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stocks\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/analyze/enhanced?use_real_data=true",
+              "host": ["{{base_url}}"],
+              "path": ["analyze", "enhanced"],
+              "query": [
+                {
+                  "key": "use_real_data",
+                  "value": "true",
+                  "description": "Use real market data from Alpha Vantage"
+                }
+              ]
+            },
+            "description": "Enhanced analysis with top recommendations and buy/hold/sell signals"
+          },
+          "response": []
+        },
+        {
+          "name": "Analysis Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/analyze/health",
+              "host": ["{{base_url}}"],
+              "path": ["analyze", "health"]
+            },
+            "description": "Health check for analysis service"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Prediction",
+      "item": [
+        {
+          "name": "Generate Market Prediction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2024-02-01\",\n  \"time\": \"09:30:00\",\n  \"latitude\": 19.0760,\n  \"longitude\": 72.8777,\n  \"timezone\": \"Asia/Kolkata\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/predict?analyse_past=false",
+              "host": ["{{base_url}}"],
+              "path": ["predict"],
+              "query": [
+                {
+                  "key": "analyse_past",
+                  "value": "false",
+                  "description": "Include historical market data analysis"
+                }
+              ]
+            },
+            "description": "Generate market prediction based on planetary transits"
+          },
+          "response": []
+        },
+        {
+          "name": "Test Prediction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/predict/test",
+              "host": ["{{base_url}}"],
+              "path": ["predict", "test"]
+            },
+            "description": "Test endpoint with default values"
+          },
+          "response": []
+        },
+        {
+          "name": "Prediction Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/predict/health",
+              "host": ["{{base_url}}"],
+              "path": ["predict", "health"]
+            },
+            "description": "Health check for prediction service"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Data",
+      "item": [
+        {
+          "name": "Get Planetary Transits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/planetary-transits",
+              "host": ["{{base_url}}"],
+              "path": ["planetary-transits"]
+            },
+            "description": "Get current planetary transit data from Swiss Ephemeris"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sector Trends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sector-trends?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["sector-trends"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of recent predictions (1-100)"
+                },
+                {
+                  "key": "sector",
+                  "value": "",
+                  "description": "Filter by specific sector",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get latest sector predictions from database"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Live Planetary Positions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/planetary-positions/live",
+              "host": ["{{base_url}}"],
+              "path": ["planetary-positions", "live"],
+              "query": [
+                {
+                  "key": "date_str",
+                  "value": "",
+                  "description": "Date in YYYY-MM-DD format",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get detailed planetary positions with astronomical data"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current Nakshatra",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nakshatra",
+              "host": ["{{base_url}}"],
+              "path": ["nakshatra"]
+            },
+            "description": "Get current Moon nakshatra (lunar mansion)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Market Data",
+      "item": [
+        {
+          "name": "Get Live Stocks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/market/stocks/live?force_refresh=false",
+              "host": ["{{base_url}}"],
+              "path": ["market", "stocks", "live"],
+              "query": [
+                {
+                  "key": "force_refresh",
+                  "value": "false",
+                  "description": "Force refresh from Alpha Vantage"
+                }
+              ]
+            },
+            "description": "Get current market data for tracked NSE stocks"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stock Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/market/stocks/RELIANCE?force_refresh=false",
+              "host": ["{{base_url}}"],
+              "path": ["market", "stocks", "RELIANCE"],
+              "query": [
+                {
+                  "key": "force_refresh",
+                  "value": "false",
+                  "description": "Force refresh from Alpha Vantage"
+                }
+              ]
+            },
+            "description": "Get detailed data for a specific stock"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cache Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/market/cache/stats",
+              "host": ["{{base_url}}"],
+              "path": ["market", "cache", "stats"]
+            },
+            "description": "Get cache statistics for market data"
+          },
+          "response": []
+        },
+        {
+          "name": "Clear Expired Cache",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/market/cache/clear-expired",
+              "host": ["{{base_url}}"],
+              "path": ["market", "cache", "clear-expired"]
+            },
+            "description": "Clear expired cache entries"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tracked Symbols",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/market/tracked-symbols",
+              "host": ["{{base_url}}"],
+              "path": ["market", "tracked-symbols"]
+            },
+            "description": "Get list of currently tracked stock symbols"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
+
