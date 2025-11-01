@@ -8,6 +8,7 @@ import os
 import json
 
 from app.services.astrology_engine import AstrologyEngine
+from app.services.sector_mapper import SectorMapper
 
 # Try to import OpenAI client
 try:
@@ -195,14 +196,19 @@ class AIService:
         # Step 1: Get astrological sector influences
         sector_influences = self.astrology_engine.analyze_sector_influences(transits)
         
-        # Step 2: Generate predictions for each sector
+        # Step 2: Map astrology sectors to database sectors
+        sector_mapper = SectorMapper()
+        db_sector_influences = sector_mapper.map_sector_influences_to_db_sectors(sector_influences)
+        
+        # Step 3: Generate predictions for each database sector
         sector_predictions = []
         
-        for sector, influences in sector_influences.items():
-            prediction = self.astrology_engine.get_sector_prediction(sector, influences)
+        for db_sector, influences in db_sector_influences.items():
+            # Get prediction using the database sector name
+            prediction = self.astrology_engine.get_sector_prediction(db_sector.name, influences)
             
             # Add top stocks for this sector
-            top_stocks = self._get_top_stocks_by_sector(sector, stocks)
+            top_stocks = self._get_top_stocks_by_sector(db_sector.name, stocks)
             
             # Enhance with AI reasoning
             enhanced_prediction = self._enhance_with_ai_reasoning(
@@ -211,12 +217,16 @@ class AIService:
                 top_stocks
             )
             
+            # Add database sector ID for reference
+            enhanced_prediction['sector_id'] = db_sector.id
+            enhanced_prediction['sector_name'] = db_sector.name
+            
             sector_predictions.append(enhanced_prediction)
         
-        # Step 3: Determine overall market sentiment
+        # Step 4: Determine overall market sentiment
         overall_sentiment = self._calculate_overall_sentiment(sector_predictions)
         
-        # Step 4: Calculate accuracy estimate
+        # Step 5: Calculate accuracy estimate
         accuracy = self._calculate_accuracy_estimate(transits)
         
         return {
@@ -433,7 +443,14 @@ Return your response as a JSON object with the following structure:
         """
         # Step 1: Generate sector predictions with AI
         sector_influences = self.astrology_engine.analyze_sector_influences(transits)
-        sector_predictions = self._get_ai_sector_predictions(sector_influences, transits)
+        
+        # Map to database sectors
+        sector_mapper = SectorMapper()
+        db_sector_influences = sector_mapper.map_sector_influences_to_db_sectors(sector_influences)
+        
+        # Convert back to dict for _get_ai_sector_predictions
+        db_sector_influences_dict = {sector.name: inf for sector, inf in db_sector_influences.items()}
+        sector_predictions = self._get_ai_sector_predictions(db_sector_influences_dict, transits)
         
         # Step 2: Match stocks to sectors and group them
         sector_stocks_map = self._group_stocks_by_sector(stock_data)
@@ -750,22 +767,27 @@ Return your response as a JSON object with the following structure:
             # Get sector influences from astrology engine
             sector_influences = self.astrology_engine.analyze_sector_influences(transits)
             
+            # Map to database sectors
+            sector_mapper = SectorMapper()
+            db_sector_influences = sector_mapper.map_sector_influences_to_db_sectors(sector_influences)
+            
             # Generate sector predictions (limit to top 5 sectors to avoid timeout)
             sector_predictions = []
-            sector_items = list(sector_influences.items())
+            sector_items = list(db_sector_influences.items())
             
             # Sort sectors by number of influences (most influenced first)
             sector_items.sort(key=lambda x: len(x[1]), reverse=True)
             
             # Limit to top 5 sectors
-            for sector, influences in sector_items[:5]:
-                prediction = self.astrology_engine.get_sector_prediction(sector, influences)
+            for db_sector, influences in sector_items[:5]:
+                prediction = self.astrology_engine.get_sector_prediction(db_sector.name, influences)
                 
                 # Enhance with AI insights
-                ai_insights = self._generate_ai_insights(sector, prediction["trend"], influences)
+                ai_insights = self._generate_ai_insights(db_sector.name, prediction["trend"], influences)
                 
                 sector_prediction = {
-                    "sector": sector,
+                    "sector": db_sector.name,
+                    "sector_id": db_sector.id,
                     "trend": prediction["trend"],
                     "planetary_influence": self._summarize_planetary_influences(influences),
                     "ai_insights": ai_insights,

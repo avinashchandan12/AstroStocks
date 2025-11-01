@@ -3,9 +3,35 @@ from typing import List, Optional, Dict, Any
 from datetime import date, datetime
 
 
+class SectorBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    past_6m_return: Optional[float] = None
+    past_1y_return: Optional[float] = None
+    volatility: Optional[str] = None
+    market_cap: Optional[float] = None
+    exchange: Optional[str] = None
+    country: Optional[str] = 'India'
+
+
+class SectorCreate(SectorBase):
+    pass
+
+
+class Sector(SectorBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
 class StockBase(BaseModel):
     symbol: str
+    script_code: Optional[str] = None  # Exchange script code (e.g., NSE, BSE)
     sector: str
+    sector_id: Optional[int] = None
     past_6m_return: Optional[float] = None
     volatility: Optional[str] = None
     pe_ratio: Optional[float] = None

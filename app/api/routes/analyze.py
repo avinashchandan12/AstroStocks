@@ -5,7 +5,7 @@ Main endpoint for astrological market analysis
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 import os
 
 from app.database.config import get_db
@@ -13,6 +13,7 @@ from app.schemas.schemas import AnalyzeRequest, AnalyzeResponse, EnhancedAnalyze
 from app.services.ai_service import AIService
 from app.services.ephemeris_service import get_planetary_transits
 from app.services.market_data_cache import MarketDataCacheService
+from app.services.prediction_cache_service import PredictionCacheService
 from app.config.stock_config import get_tracked_stocks, use_real_market_data
 from app.models.models import SectorPrediction
 
@@ -31,6 +32,9 @@ async def analyze_market(
     AI-driven astrological predictions for various sectors.
     
     Requires stock and transit data to be provided in the request.
+    
+    CACHING: Results are cached by date. If an analysis for today already exists,
+    it will be returned from cache without calling the AI or market data APIs.
     """
     try:
         # Require stocks to be provided
@@ -39,6 +43,21 @@ async def analyze_market(
                 status_code=400,
                 detail="Stock data is required. Please provide stocks in the request."
             )
+        
+        # Get analysis date (default to today)
+        analysis_date = date.today()
+        
+        # Check cache first
+        cache_service = PredictionCacheService(db)
+        cached_result = cache_service.get_analyze_cache(analysis_date, 'basic')
+        
+        if cached_result:
+            print(f"✅ Returning cached analysis for {analysis_date}")
+            db.commit()
+            return AnalyzeResponse(**cached_result)
+        
+        # No cache hit - generate new analysis
+        print(f"❌ Cache miss for {analysis_date} - generating new analysis")
         
         stocks = request.stocks
         transits_data = request.transits if request.transits else None
@@ -79,16 +98,26 @@ async def analyze_market(
         db.commit()
         
         # Return response
-        return AnalyzeResponse(
+        response = AnalyzeResponse(
             sector_predictions=analysis_result["sector_predictions"],
             overall_market_sentiment=analysis_result["overall_market_sentiment"],
             accuracy_estimate=analysis_result["accuracy_estimate"],
             timestamp=datetime.fromisoformat(analysis_result["timestamp"])
         )
+        
+        # Save to cache
+        response_dict = response.model_dump() if hasattr(response, 'model_dump') else response.dict()
+        cache_service.save_analyze_cache(analysis_date, 'basic', response_dict)
+        db.commit()
+        
+        print(f"✅ Saved analysis to cache for {analysis_date}")
+        
+        return response
     
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
@@ -112,12 +141,30 @@ async def analyze_market_enhanced(
     2. Real planetary positions from pyswisseph
     3. DeepSeek AI for astrological insights
     4. Vedic astrology engine for sector analysis
+    
+    CACHING: Results are cached by date. If an enhanced analysis for today already exists,
+    it will be returned from cache without calling the AI or market data APIs.
     """
     try:
+        # Get analysis date (default to today)
+        analysis_date = date.today()
+        
+        # Check cache first
+        analysis_cache_service = PredictionCacheService(db)
+        cached_result = analysis_cache_service.get_analyze_cache(analysis_date, 'enhanced')
+        
+        if cached_result:
+            print(f"✅ Returning cached enhanced analysis for {analysis_date}")
+            db.commit()
+            return cached_result
+        
+        # No cache hit - generate new enhanced analysis
+        print(f"❌ Cache miss for {analysis_date} - generating new enhanced analysis")
+        
         # Get stock data (real or from request)
         if use_real_data and use_real_market_data():
             print("📊 Using real market data from Alpha Vantage...")
-            cache_service = MarketDataCacheService(db)
+            market_cache_service = MarketDataCacheService(db)
             tracked_symbols = get_tracked_stocks()
             
             if not tracked_symbols:
@@ -126,7 +173,7 @@ async def analyze_market_enhanced(
                     detail="No stocks configured. Set NSE_STOCKS in environment."
                 )
             
-            stocks = cache_service.get_stock_data(tracked_symbols)
+            stocks = market_cache_service.get_stock_data(tracked_symbols)
             
             if not stocks:
                 raise HTTPException(
@@ -184,7 +231,12 @@ async def analyze_market_enhanced(
         
         db.commit()
         
+        # Save to cache
+        analysis_cache_service.save_analyze_cache(analysis_date, 'enhanced', analysis_result)
+        db.commit()
+        
         print(f"✅ Analysis complete: {len(analysis_result['top_recommendations'])} recommendations generated")
+        print(f"✅ Saved enhanced analysis to cache for {analysis_date}")
         
         # Return enhanced response
         return analysis_result
@@ -192,6 +244,7 @@ async def analyze_market_enhanced(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Enhanced analysis failed: {str(e)}")

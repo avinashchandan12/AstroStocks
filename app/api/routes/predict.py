@@ -5,11 +5,12 @@ Main endpoint for market predictions based on planetary transits
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 
 from app.database.config import get_db
 from app.schemas.schemas import PredictRequest, PredictResponse
 from app.services.prediction_service import PredictionService
+from app.services.prediction_cache_service import PredictionCacheService
 
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
@@ -27,6 +28,9 @@ async def predict_market(
     This endpoint calculates planetary positions for a specific date/time/location
     and generates AI-powered market predictions based on Vedic astrology principles.
     
+    CACHING: Results are cached by date. If a prediction for today already exists,
+    it will be returned from cache without calling the AI or market data APIs.
+    
     Args:
         request: Prediction parameters (all optional)
         analyse_past: Include historical market data analysis
@@ -37,6 +41,21 @@ async def predict_market(
         PredictResponse with planetary transits and market prediction
     """
     try:
+        # Get prediction date (default to today)
+        prediction_date = date.fromisoformat(request.date) if request.date else date.today()
+        
+        # Check cache first
+        cache_service = PredictionCacheService(db)
+        cached_result = cache_service.get_prediction_cache(prediction_date)
+        
+        if cached_result:
+            print(f"✅ Returning cached prediction for {prediction_date}")
+            db.commit()
+            return cached_result
+        
+        # No cache hit - generate new prediction
+        print(f"❌ Cache miss for {prediction_date} - generating new prediction")
+        
         # Initialize prediction service
         prediction_service = PredictionService()
         
@@ -50,9 +69,17 @@ async def predict_market(
         if stream:
             print("⚠️  Streaming not yet implemented, returning standard response")
         
+        # Save to cache (convert Pydantic model to dict)
+        response_dict = prediction_result.model_dump() if hasattr(prediction_result, 'model_dump') else prediction_result.dict()
+        cache_service.save_prediction_cache(prediction_date, response_dict)
+        db.commit()
+        
+        print(f"✅ Saved prediction to cache for {prediction_date}")
+        
         return prediction_result
     
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
