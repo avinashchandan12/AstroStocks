@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  /* Custom Astrology Theme Colors */
+  --color-cosmic-50: #f5f3ff;
+  --color-cosmic-100: #ede9fe;
+  --color-cosmic-200: #ddd6fe;
+  --color-cosmic-300: #c4b5fd;
+  --color-cosmic-400: #a78bfa;
+  --color-cosmic-500: #8b5cf6;
+  --color-cosmic-600: #7c3aed;
+  --color-cosmic-700: #6d28d9;
+  --color-cosmic-800: #5b21b6;
+  --color-cosmic-900: #4c1d95;
+  
+  --color-astro-gold: #fbbf24;
+  --color-astro-silver: #e5e7eb;
+  --color-astro-stellar: #1e1b4b;
+  --color-astro-nebula: #6366f1;
+  
+  /* Fluid Typography */
+  --font-size-fluid-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --font-size-fluid-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+  --font-size-fluid-base: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+  --font-size-fluid-lg: clamp(1.125rem, 1rem + 0.625vw, 1.25rem);
+  --font-size-fluid-xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
+  --font-size-fluid-2xl: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  --font-size-fluid-3xl: clamp(1.875rem, 1.5rem + 1.875vw, 3rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(139, 92, 246, 0.4) 50%,
+    transparent 100%
+  );
+  background-size: 1000px 100%;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Glass Morphism */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass {
+  background: rgba(30, 27, 75, 0.3);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+/* Streaming Typewriter Effect */
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-typing {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typing 0.5s steps(40, end);
+}

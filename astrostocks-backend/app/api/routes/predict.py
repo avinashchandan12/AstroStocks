@@ -3,9 +3,11 @@ Prediction API Routes
 Main endpoint for market predictions based on planetary transits
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
 from datetime import datetime, date
+import json
 
 from app.database.config import get_db
 from app.schemas.schemas import PredictRequest, PredictResponse
@@ -91,6 +93,74 @@ async def health_check():
         "service": "AstroFinanceAI Prediction Service",
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+async def stream_prediction_generator(
+    request: PredictRequest,
+    analyse_past: bool = False
+) -> AsyncGenerator[str, None]:
+    """
+    Generator function that yields SSE-formatted chunks of prediction data
+    """
+    try:
+        # Initialize services
+        prediction_service = PredictionService()
+        
+        # Yield start status
+        yield f"data: {json.dumps({'status': 'started', 'message': 'Generating prediction...'})}\n\n"
+        
+        # Parse inputs
+        prediction_date = date.fromisoformat(request.date) if request.date else date.today()
+        yield f"data: {json.dumps({'status': 'processing', 'stage': 'calculating_transits', 'date': str(prediction_date)})}\n\n"
+        
+        # Generate prediction in chunks (simulate streaming)
+        prediction_result = prediction_service.generate_prediction(
+            request=request,
+            include_past_data=analyse_past
+        )
+        
+        # Convert to dict for streaming
+        result_dict = prediction_result.model_dump() if hasattr(prediction_result, 'model_dump') else prediction_result.dict()
+        
+        # Yield planetary transits first
+        yield f"data: {json.dumps({'status': 'processing', 'stage': 'transits', 'data': result_dict.get('planetary_transits', [])})}\n\n"
+        
+        # Yield market prediction
+        if 'market_prediction' in result_dict:
+            yield f"data: {json.dumps({'status': 'processing', 'stage': 'market_prediction', 'data': result_dict['market_prediction']})}\n\n"
+        
+        # Yield confidence
+        yield f"data: {json.dumps({'status': 'processing', 'stage': 'confidence', 'data': result_dict.get('confidence', 0)})}\n\n"
+        
+        # Yield complete status
+        yield f"data: {json.dumps({'status': 'complete', 'message': 'Prediction generated successfully'})}\n\n"
+        
+    except Exception as e:
+        # Yield error
+        yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+
+
+@router.post("/stream")
+async def predict_market_stream(
+    request: PredictRequest,
+    analyse_past: bool = Query(False, description="Whether to include historical market data analysis"),
+    db: Session = Depends(get_db)
+):
+    """
+    Stream market prediction based on planetary transits using Server-Sent Events (SSE)
+    
+    This endpoint streams prediction results in real-time as they're generated.
+    Useful for providing live feedback to users during long-running predictions.
+    """
+    return StreamingResponse(
+        stream_prediction_generator(request, analyse_past),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @router.post("/test")

@@ -3,10 +3,12 @@ Analysis API Routes
 Main endpoint for astrological market analysis
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
 from datetime import datetime, date
 import os
+import json
 
 from app.database.config import get_db
 from app.schemas.schemas import AnalyzeRequest, AnalyzeResponse, EnhancedAnalyzeResponse
@@ -248,6 +250,106 @@ async def analyze_market_enhanced(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Enhanced analysis failed: {str(e)}")
+
+
+async def stream_analysis_generator(
+    request: AnalyzeRequest,
+    endpoint_type: str = 'basic'
+) -> AsyncGenerator[str, None]:
+    """
+    Generator function that yields SSE-formatted chunks of analysis data
+    """
+    try:
+        # Initialize AI service
+        ai_service = AIService()
+        
+        # Yield start status
+        yield f"data: {json.dumps({'status': 'started', 'message': 'Starting analysis...'})}\n\n"
+        
+        # Get stock data
+        if not request.stocks:
+            yield f"data: {json.dumps({'status': 'error', 'error': 'Stock data is required'})}\n\n"
+            return
+        
+        stocks = request.stocks
+        yield f"data: {json.dumps({'status': 'processing', 'stage': 'loading_data', 'message': f'Analyzing {len(stocks)} stocks...'})}\n\n"
+        
+        # Get transit data
+        transits_data = request.transits if request.transits else None
+        if transits_data and isinstance(transits_data, dict):
+            transits = transits_data.get("transits", [])
+        elif transits_data and isinstance(transits_data, list):
+            transits = transits_data
+        else:
+            transits = get_planetary_transits()
+        
+        if not transits:
+            yield f"data: {json.dumps({'status': 'error', 'error': 'Planetary transit data unavailable'})}\n\n"
+            return
+        
+        yield f"data: {json.dumps({'status': 'processing', 'stage': 'transits_loaded', 'count': len(transits)})}\n\n"
+        
+        # Run analysis
+        if endpoint_type == 'enhanced':
+            analysis_result = ai_service.analyze_market_with_stocks(stocks, transits)
+        else:
+            analysis_result = ai_service.analyze_market(stocks, transits)
+        
+        # Stream sector predictions
+        sector_predictions = analysis_result.get('sector_predictions', [])
+        yield f"data: {json.dumps({'status': 'processing', 'stage': 'sectors', 'count': len(sector_predictions)})}\n\n"
+        
+        # Yield each sector prediction
+        for idx, sector_pred in enumerate(sector_predictions):
+            yield f"data: {json.dumps({'status': 'processing', 'stage': 'sector_detail', 'index': idx, 'data': sector_pred})}\n\n"
+        
+        # Yield complete result
+        yield f"data: {json.dumps({'status': 'complete', 'data': analysis_result})}\n\n"
+        
+    except Exception as e:
+        yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+
+
+@router.post("/stream")
+async def analyze_market_stream(
+    request: AnalyzeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stream market analysis using Server-Sent Events (SSE)
+    
+    This endpoint streams analysis results in real-time as they're generated.
+    """
+    return StreamingResponse(
+        stream_analysis_generator(request, 'basic'),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/enhanced/stream")
+async def analyze_market_enhanced_stream(
+    request: AnalyzeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stream enhanced market analysis using Server-Sent Events (SSE)
+    
+    This endpoint streams enhanced analysis results in real-time.
+    """
+    return StreamingResponse(
+        stream_analysis_generator(request, 'enhanced'),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @router.get("/health")
