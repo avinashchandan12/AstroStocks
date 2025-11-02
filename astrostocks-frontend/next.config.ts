@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['@prisma/client'],
   },
+  // Turbopack handles path aliases automatically from tsconfig.json
+  // No additional configuration needed
 };
 
 export default nextConfig;
