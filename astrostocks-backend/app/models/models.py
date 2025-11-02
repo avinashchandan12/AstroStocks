@@ -132,3 +132,29 @@ class AnalyzeCache(Base):
         UniqueConstraint('analysis_date', 'endpoint_type', name='uq_analyze_cache_date_type'),
     )
 
+
+class SectorArchive(Base):
+    """Archive table for old sector predictions when hard refresh is performed"""
+    __tablename__ = "sector_archive"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Original prediction data
+    sector = Column(String(50), nullable=False, index=True)
+    planetary_influence = Column(Text)
+    trend = Column(String(20))
+    reason = Column(Text)
+    top_stocks = Column(JSON)
+    accuracy_estimate = Column(Float)
+    sector_id = Column(Integer, nullable=True, index=True)
+    sector_name = Column(String(100))
+    confidence = Column(String(20))
+    ai_insights = Column(Text)
+    transit_start = Column(String(100))
+    transit_end = Column(String(100))
+    
+    # Archive metadata
+    original_created_at = Column(DateTime(timezone=True))  # When the original prediction was created
+    archived_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    archive_date = Column(Date, nullable=False, index=True)  # The date this prediction was for
+

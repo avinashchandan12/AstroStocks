@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import SectorCard from '@/components/dashboard/SectorCard'
 import { apiClient } from '@/lib/api-client'
-import type { SectorPrediction, Stock } from '@/types/astro'
+import type { SectorPrediction } from '@/types/astro'
 import toast from 'react-hot-toast'
 import KPICards from '@/components/dashboard/KPICards'
 
@@ -19,29 +19,8 @@ export default function DashboardPage() {
   const loadPredictions = async () => {
     setLoading(true)
     try {
-      // Sample stocks data matching the user's example format
-      const stocks: Stock[] = [
-        {
-          symbol: 'RELIANCE',
-          sector: 'Oil & Gas',
-          past_6m_return: 15.5,
-          volatility: 'Medium',
-          pe_ratio: 24.2,
-          price_trend: 'Upward',
-          news_sentiment: 'Positive',
-        },
-        {
-          symbol: 'TCS',
-          sector: 'Technology',
-          past_6m_return: 8.7,
-          volatility: 'Low',
-          pe_ratio: 28.3,
-          price_trend: 'Upward',
-          news_sentiment: 'Positive',
-        },
-      ]
-
-      const data = await apiClient.analyze({ stocks })
+      // Call analyze endpoint without stocks - it will predict all sectors from database
+      const data = await apiClient.analyze({})
       setPredictions(data.sector_predictions || [])
       toast.success('Predictions loaded successfully!')
     } catch (error: any) {

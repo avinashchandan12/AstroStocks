@@ -177,6 +177,30 @@ class PredictionCacheService:
         
         print(f"🗑️  Cleared {prediction_count} prediction caches and {analyze_count} analysis caches older than {days} days")
     
+    def delete_analyze_cache(self, analysis_date: date, endpoint_type: str) -> bool:
+        """
+        Delete cached analysis for a specific date and endpoint type
+        
+        Args:
+            analysis_date: Date to delete cache for
+            endpoint_type: 'basic' or 'enhanced'
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        cached = self.db.query(AnalyzeCache).filter(
+            AnalyzeCache.analysis_date == analysis_date,
+            AnalyzeCache.endpoint_type == endpoint_type
+        ).first()
+        
+        if cached:
+            self.db.delete(cached)
+            print(f"🗑️  Deleted cache for {endpoint_type} analysis date: {analysis_date}")
+            return True
+        else:
+            print(f"⚠️  No cache found to delete for {endpoint_type} analysis date: {analysis_date}")
+            return False
+    
     def get_cache_stats(self) -> Dict[str, Any]:
         """
         Get cache statistics

@@ -162,6 +162,142 @@ class EphemerisService:
             print(f"Error checking retrograde for {planet}: {e}")
             return False
     
+    def find_sign_boundary(self, planet: str, dt: datetime, direction: str = "backward") -> Optional[datetime]:
+        """
+        Find when planet entered or will leave current sign
+        
+        Args:
+            planet: Planet name
+            dt: Current datetime
+            direction: "backward" to find entry time, "forward" to find exit time
+            
+        Returns:
+            Datetime when planet entered (backward) or will leave (forward) the sign
+        """
+        if not SWISSEPH_AVAILABLE:
+            return None
+        
+        try:
+            jd = self.datetime_to_julian_day(dt)
+            current_pos = self.calculate_planet_position(planet, dt)
+            if not current_pos:
+                return None
+            
+            current_sign = current_pos["sign"]
+            current_longitude = current_pos["longitude"]
+            current_sign_index = ZODIAC_SIGNS.index(current_sign)
+            
+            # Calculate sign boundaries in longitude (0-360)
+            if direction == "backward":
+                # Find entry time: go backward until sign changes
+                sign_start_longitude = current_sign_index * 30
+                target_longitude = sign_start_longitude
+                
+                # Binary search backward in time
+                search_jd = jd
+                step_days = 10.0  # Start with 10 days steps
+                min_step = 0.01  # Minimum step in days
+                
+                # Go back initially to ensure we're in previous sign
+                search_jd -= 30  # Start 30 days back
+                
+                while step_days > min_step:
+                    test_pos = self.calculate_planet_position(planet, self.julian_day_to_datetime(search_jd))
+                    if not test_pos:
+                        break
+                    
+                    test_longitude = test_pos["longitude"]
+                    test_sign = test_pos["sign"]
+                    
+                    if test_sign != current_sign:
+                        # We're in previous sign, move forward
+                        search_jd += step_days
+                        step_days /= 2
+                    else:
+                        # Still in current sign, move backward
+                        search_jd -= step_days
+                
+                # Fine-tune to find exact boundary
+                while True:
+                    test_pos = self.calculate_planet_position(planet, self.julian_day_to_datetime(search_jd))
+                    if not test_pos:
+                        break
+                    if test_pos["sign"] != current_sign:
+                        search_jd += 0.01
+                    else:
+                        break
+                
+                return self.julian_day_to_datetime(search_jd)
+            
+            else:  # forward - find exit time
+                # Find exit time: go forward until sign changes
+                sign_end_longitude = (current_sign_index + 1) * 30
+                if sign_end_longitude >= 360:
+                    sign_end_longitude = 0
+                
+                # Binary search forward in time
+                search_jd = jd
+                step_days = 10.0
+                min_step = 0.01
+                
+                # Go forward initially
+                search_jd += 30
+                
+                while step_days > min_step:
+                    test_pos = self.calculate_planet_position(planet, self.julian_day_to_datetime(search_jd))
+                    if not test_pos:
+                        break
+                    
+                    test_sign = test_pos["sign"]
+                    
+                    if test_sign != current_sign:
+                        # We've left the sign, move backward
+                        search_jd -= step_days
+                        step_days /= 2
+                    else:
+                        # Still in current sign, move forward
+                        search_jd += step_days
+                
+                # Fine-tune
+                while True:
+                    test_pos = self.calculate_planet_position(planet, self.julian_day_to_datetime(search_jd))
+                    if not test_pos:
+                        break
+                    if test_pos["sign"] == current_sign:
+                        search_jd += 0.01
+                    else:
+                        break
+                
+                return self.julian_day_to_datetime(search_jd)
+        
+        except Exception as e:
+            print(f"Error finding sign boundary for {planet}: {e}")
+            return None
+    
+    def julian_day_to_datetime(self, jd: float) -> datetime:
+        """Convert Julian Day Number to datetime"""
+        if not SWISSEPH_AVAILABLE:
+            return datetime.utcnow()
+        
+        try:
+            # swe.revjul returns (year, month, day, hour_frac)
+            result = swe.revjul(jd, swe.GREG_CAL)
+            year = int(result[0])
+            month = int(result[1])
+            day = int(result[2])
+            hour_frac = result[3]
+            
+            # Convert fractional hour to hours, minutes, seconds
+            hours = int(hour_frac)
+            minutes_frac = (hour_frac - hours) * 60
+            minutes = int(minutes_frac)
+            seconds = int((minutes_frac - minutes) * 60)
+            
+            return datetime(year, month, day, hours, minutes, seconds)
+        except Exception as e:
+            print(f"Error converting Julian Day to datetime: {e}")
+            return datetime.utcnow()
+    
     def calculate_planet_position(self, planet: str, dt: datetime) -> Optional[Dict[str, Any]]:
         """Calculate position for a single planet"""
         if not SWISSEPH_AVAILABLE:
@@ -259,21 +395,30 @@ class EphemerisService:
             "moon_position": moon_position
         }
     
-    def format_for_api(self, positions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def format_for_api(self, positions: List[Dict[str, Any]], dt: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """
-        Format planetary positions for API compatibility
+        Format planetary positions for API compatibility with transit timing
         Matches the format expected by astrology_engine
         """
+        if dt is None:
+            dt = datetime.utcnow()
+        
         formatted = []
         for pos in positions:
+            # Calculate transit timing
+            transit_start = self.find_sign_boundary(pos["planet"], dt, "backward")
+            transit_end = self.find_sign_boundary(pos["planet"], dt, "forward")
+            
             formatted.append({
                 "planet": pos["planet"],
                 "sign": pos["sign"],
                 "motion": pos["motion"],
                 "status": pos["dignity"],
-                "date": datetime.utcnow().date().isoformat(),
+                "date": dt.date().isoformat(),
                 "longitude": pos["longitude"],
-                "nakshatra": self.get_nakshatra(pos["longitude"])["name"] if pos["planet"] == "Moon" else None
+                "nakshatra": self.get_nakshatra(pos["longitude"])["name"] if pos["planet"] == "Moon" else None,
+                "transit_start": transit_start.isoformat() if transit_start else None,
+                "transit_end": transit_end.isoformat() if transit_end else None
             })
         
         return formatted
@@ -282,10 +427,10 @@ class EphemerisService:
         """
         Get planetary transits in the format expected by the application
         
-        Returns real planetary transit data from Swiss Ephemeris calculations
+        Returns real planetary transit data from Swiss Ephemeris calculations with timing
         """
         positions = self.get_all_planetary_positions(dt)
-        return self.format_for_api(positions)
+        return self.format_for_api(positions, dt)
 
 
 # Global instance

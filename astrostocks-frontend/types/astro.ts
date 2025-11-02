@@ -1,5 +1,14 @@
 // TypeScript types matching backend API schemas
 
+export interface PlanetTransit {
+  planet: string
+  sign: string
+  transit_start?: string
+  transit_end?: string
+  status?: string
+  motion?: string
+}
+
 export interface SectorPrediction {
   sector: string
   planetary_influence: string
@@ -11,6 +20,9 @@ export interface SectorPrediction {
   sector_name?: string
   confidence?: string // 'Low' | 'Medium' | 'High'
   ai_insights?: string // JSON string containing AI insights
+  transit_start?: string // ISO datetime when transit effect started (aggregated)
+  transit_end?: string // ISO datetime when transit effect will end (aggregated)
+  planet_transits?: PlanetTransit[] // Individual planet transits with timing
 }
 
 export interface PlanetaryTransit {
@@ -26,6 +38,8 @@ export interface PlanetaryTransit {
   status?: string
   date?: string
   nakshatra?: string
+  transit_start?: string // ISO datetime when planet entered sign
+  transit_end?: string // ISO datetime when planet will leave sign
 }
 
 export interface KeyInfluence {

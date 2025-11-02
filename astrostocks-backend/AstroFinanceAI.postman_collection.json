@@ -64,7 +64,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"stocks\": [\n    {\n      \"symbol\": \"RELIANCE\",\n      \"sector\": \"Oil & Gas\",\n      \"past_6m_return\": 15.5,\n      \"volatility\": \"Medium\",\n      \"pe_ratio\": 24.2,\n      \"price_trend\": \"Upward\",\n      \"news_sentiment\": \"Positive\"\n    },\n    {\n      \"symbol\": \"TCS\",\n      \"sector\": \"Technology\",\n      \"past_6m_return\": 8.7,\n      \"volatility\": \"Low\",\n      \"pe_ratio\": 28.3,\n      \"price_trend\": \"Upward\",\n      \"news_sentiment\": \"Positive\"\n    }\n  ]\n}",
+              "raw": "{\n  \"stocks\": null,\n  \"hard_refresh\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -76,7 +76,35 @@
               "host": ["{{base_url}}"],
               "path": ["analyze"]
             },
-            "description": "Combines stock market data with planetary transits to generate AI-driven predictions"
+            "description": "Generates AI-driven astrological predictions for all sectors. Stocks are optional - if not provided, predicts all sectors from database. Set hard_refresh=true to bypass cache, archive old predictions, and regenerate analysis."
+          },
+          "response": []
+        },
+        {
+          "name": "Analyze Market (Hard Refresh)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hard_refresh\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["analyze"]
+            },
+            "description": "Hard refresh: Bypasses cache, archives old predictions to sector_archive table, deletes old predictions, and regenerates fresh analysis with full AI processing."
           },
           "response": []
         },

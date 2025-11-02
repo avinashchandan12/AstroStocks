@@ -93,11 +93,15 @@ class SectorPrediction(SectorPredictionBase):
 class AnalyzeRequest(BaseModel):
     stocks: Optional[List[Dict[str, Any]]] = Field(
         None, 
-        description="List of stock data. Required for analysis."
+        description="Optional list of stock data. If not provided, analysis will be generated for all sectors from database."
     )
     transits: Optional[Dict[str, Any]] = Field(
         None,
         description="Optional planetary transit data. If not provided, real ephemeris data will be fetched."
+    )
+    hard_refresh: Optional[bool] = Field(
+        False,
+        description="If true, bypass cache, archive old predictions, and regenerate analysis."
     )
 
 
@@ -176,6 +180,8 @@ class PlanetaryTransit(BaseModel):
     retrograde: bool
     motion: str
     speed: float
+    transit_start: Optional[str] = None  # ISO datetime when planet entered sign
+    transit_end: Optional[str] = None  # ISO datetime when planet will leave sign
 
 
 class KeyInfluence(BaseModel):

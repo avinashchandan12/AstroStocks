@@ -10,6 +10,9 @@ import {
   ArrowTrendingDownIcon,
   MinusIcon,
 } from '@heroicons/react/24/outline'
+import TransitTimer from './TransitTimer'
+import TransitTimingTable from './TransitTimingTable'
+import SectorDetailModal from './SectorDetailModal'
 
 interface SectorCardProps {
   prediction: SectorPrediction
@@ -31,18 +34,21 @@ const trendColors = {
 
 export default function SectorCard({ prediction, isStreaming = false, index }: SectorCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const TrendIcon = trendIcons[prediction.trend as keyof typeof trendIcons] || trendIcons.Neutral
   const trendColor = trendColors[prediction.trend as keyof typeof trendColors] || trendColors.Neutral
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-      className={`glass rounded-xl p-6 border border-cosmic-700/50 hover:border-cosmic-600 transition-all ${
-        isStreaming ? 'animate-pulse-glow' : ''
-      }`}
-    >
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.1 }}
+        className={`glass rounded-xl p-6 border border-cosmic-700/50 hover:border-cosmic-600 transition-all cursor-pointer ${
+          isStreaming ? 'animate-pulse-glow' : ''
+        }`}
+        onClick={() => setIsModalOpen(true)}
+      >
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
@@ -71,7 +77,10 @@ export default function SectorCard({ prediction, isStreaming = false, index }: S
           </div>
         </div>
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded(!expanded)
+          }}
           className="p-1 rounded-lg hover:bg-cosmic-700 transition-colors"
         >
           {expanded ? (
@@ -104,6 +113,14 @@ export default function SectorCard({ prediction, isStreaming = false, index }: S
         </div>
       )}
 
+      {/* Transit Timing Summary */}
+      {(prediction.transit_start || prediction.transit_end) && (
+        <TransitTimer 
+          startTime={prediction.transit_start}
+          endTime={prediction.transit_end}
+        />
+      )}
+
       {/* Expanded Content */}
       {expanded && (
         <motion.div
@@ -111,12 +128,18 @@ export default function SectorCard({ prediction, isStreaming = false, index }: S
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           className="pt-4 border-t border-cosmic-700"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="space-y-4">
             <div>
               <p className="text-xs text-gray-400 mb-1 font-medium">Reasoning:</p>
               <p className="text-sm text-gray-300 leading-relaxed">{prediction.reason}</p>
             </div>
+            
+            {/* Transit Timing Table */}
+            {prediction.planet_transits && prediction.planet_transits.length > 0 && (
+              <TransitTimingTable planetTransits={prediction.planet_transits} />
+            )}
             
             {prediction.ai_insights && (
               <div>
@@ -161,6 +184,14 @@ export default function SectorCard({ prediction, isStreaming = false, index }: S
         </motion.div>
       )}
     </motion.div>
+    
+    {/* Detail Modal */}
+    <SectorDetailModal
+      prediction={prediction}
+      isOpen={isModalOpen}
+      onClose={() => setIsModalOpen(false)}
+    />
+    </>
   )
 }
 

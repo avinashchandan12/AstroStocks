@@ -17,9 +17,66 @@ from app.services.ephemeris_service import get_planetary_transits
 from app.services.market_data_cache import MarketDataCacheService
 from app.services.prediction_cache_service import PredictionCacheService
 from app.config.stock_config import get_tracked_stocks, use_real_market_data
-from app.models.models import SectorPrediction
+from app.models.models import SectorPrediction, SectorArchive
 
 router = APIRouter(prefix="/analyze", tags=["Analysis"])
+
+
+def _archive_old_predictions(db: Session, analysis_date: date) -> None:
+    """
+    Archive old sector predictions to sector_archive table before hard refresh
+    
+    Args:
+        db: Database session
+        analysis_date: Date for which predictions are being archived
+    """
+    from datetime import datetime
+    
+    # Try to get cached predictions which may have newer fields
+    cache_service = PredictionCacheService(db)
+    cached_data = cache_service.get_analyze_cache(analysis_date, 'basic')
+    
+    # Create a mapping of cached predictions by sector name for quick lookup
+    cached_predictions_map = {}
+    if cached_data and 'sector_predictions' in cached_data:
+        for cached_pred in cached_data['sector_predictions']:
+            sector_key = cached_pred.get('sector') or cached_pred.get('sector_name', '')
+            cached_predictions_map[sector_key] = cached_pred
+    
+    # Get all existing predictions from database
+    old_predictions = db.query(SectorPrediction).all()
+    
+    if not old_predictions:
+        print("⚠️  No old predictions to archive")
+        return
+    
+    archived_count = 0
+    for old_pred in old_predictions:
+        # Try to get enhanced data from cache
+        cached_pred = cached_predictions_map.get(old_pred.sector, {})
+        
+        # Create archive entry with all available data
+        archive_entry = SectorArchive(
+            sector=old_pred.sector,
+            planetary_influence=old_pred.planetary_influence,
+            trend=old_pred.trend,
+            reason=old_pred.reason,
+            top_stocks=old_pred.top_stocks,
+            accuracy_estimate=old_pred.accuracy_estimate,
+            sector_id=cached_pred.get('sector_id'),
+            sector_name=cached_pred.get('sector_name', old_pred.sector),
+            confidence=cached_pred.get('confidence'),
+            ai_insights=cached_pred.get('ai_insights'),
+            transit_start=cached_pred.get('transit_start'),
+            transit_end=cached_pred.get('transit_end'),
+            original_created_at=old_pred.created_at,
+            archive_date=analysis_date
+        )
+        db.add(archive_entry)
+        archived_count += 1
+    
+    db.commit()
+    print(f"📦 Archived {archived_count} old predictions to sector_archive table for date {analysis_date}")
 
 
 @router.post("", response_model=AnalyzeResponse)
@@ -30,38 +87,48 @@ async def analyze_market(
     """
     Main analysis endpoint
     
-    Combines stock market data with planetary transits to generate
-    AI-driven astrological predictions for various sectors.
+    Generates AI-driven astrological predictions for all sectors in the database.
     
-    Requires stock and transit data to be provided in the request.
+    Stocks are optional - if not provided, predictions will be generated for all
+    sectors with top stocks fetched from the database. If stocks are provided,
+    only those sectors will be analyzed.
+    
+    Transit timing information (start/end dates) is automatically calculated
+    and included in the response.
     
     CACHING: Results are cached by date. If an analysis for today already exists,
     it will be returned from cache without calling the AI or market data APIs.
+    
+    HARD_REFRESH: If hard_refresh=true is passed, cache is bypassed, old predictions
+    are archived to sector_archive table, and new analysis is generated.
     """
     try:
-        # Require stocks to be provided
-        if not request.stocks:
-            raise HTTPException(
-                status_code=400,
-                detail="Stock data is required. Please provide stocks in the request."
-            )
-        
         # Get analysis date (default to today)
         analysis_date = date.today()
+        hard_refresh = request.hard_refresh if request.hard_refresh else False
         
-        # Check cache first
         cache_service = PredictionCacheService(db)
-        cached_result = cache_service.get_analyze_cache(analysis_date, 'basic')
         
-        if cached_result:
-            print(f"✅ Returning cached analysis for {analysis_date}")
-            db.commit()
-            return AnalyzeResponse(**cached_result)
+        # Check cache first (unless hard refresh)
+        if not hard_refresh:
+            cached_result = cache_service.get_analyze_cache(analysis_date, 'basic')
+            
+            if cached_result:
+                print(f"✅ Returning cached analysis for {analysis_date}")
+                db.commit()
+                return AnalyzeResponse(**cached_result)
         
-        # No cache hit - generate new analysis
-        print(f"❌ Cache miss for {analysis_date} - generating new analysis")
+        # Hard refresh or cache miss - generate new analysis
+        if hard_refresh:
+            print(f"🔄 Hard refresh requested for {analysis_date} - archiving old predictions and regenerating")
+            # Archive old predictions before generating new ones
+            _archive_old_predictions(db, analysis_date)
+        else:
+            print(f"❌ Cache miss for {analysis_date} - generating new analysis")
         
-        stocks = request.stocks
+        # Stocks are now optional - if not provided, will predict all sectors from database
+        stocks = request.stocks if request.stocks else None
+        
         transits_data = request.transits if request.transits else None
         
         # Convert transits to list format if needed
@@ -70,7 +137,7 @@ async def analyze_market(
         elif transits_data and isinstance(transits_data, list):
             transits = transits_data
         else:
-            # Get real transits from ephemeris service
+            # Get real transits from ephemeris service (with timing)
             transits = get_planetary_transits()
             
             if not transits:
@@ -82,18 +149,26 @@ async def analyze_market(
         # Initialize AI service
         ai_service = AIService()
         
-        # Run analysis
-        analysis_result = ai_service.analyze_market(stocks, transits)
+        # Run analysis (stocks optional, will predict all sectors if None)
+        analysis_result = ai_service.analyze_market(stocks=stocks, transits=transits, db=db)
         
         # Store predictions in database
+        # If hard refresh, delete old predictions first (already archived)
+        if hard_refresh:
+            old_predictions = db.query(SectorPrediction).all()
+            for old_pred in old_predictions:
+                db.delete(old_pred)
+            db.commit()
+            print(f"🗑️  Deleted {len(old_predictions)} old predictions after archiving")
+        
         for prediction in analysis_result["sector_predictions"]:
             db_prediction = SectorPrediction(
-                sector=prediction["sector"],
-                planetary_influence=prediction["planetary_influence"],
-                trend=prediction["trend"],
-                reason=prediction["reason"],
-                top_stocks=prediction["top_stocks"],
-                accuracy_estimate=float(analysis_result["accuracy_estimate"].rstrip("%")) / 100
+                sector=prediction.get("sector") or prediction.get("sector_name", ""),
+                planetary_influence=prediction.get("planetary_influence"),
+                trend=prediction.get("trend"),
+                reason=prediction.get("reason"),
+                top_stocks=prediction.get("top_stocks"),
+                accuracy_estimate=float(analysis_result["accuracy_estimate"].rstrip("%")) / 100 if analysis_result.get("accuracy_estimate") else None
             )
             db.add(db_prediction)
         
@@ -107,12 +182,23 @@ async def analyze_market(
             timestamp=datetime.fromisoformat(analysis_result["timestamp"])
         )
         
-        # Save to cache
+        # Save to cache (or update if hard refresh)
+        if hard_refresh:
+            # Delete old cache entry if exists
+            old_cache = cache_service.get_analyze_cache(analysis_date, 'basic')
+            if old_cache:
+                cache_service.delete_analyze_cache(analysis_date, 'basic')
+                db.commit()
+                print(f"🗑️  Deleted old cache entry for {analysis_date}")
+        
         response_dict = response.model_dump() if hasattr(response, 'model_dump') else response.dict()
         cache_service.save_analyze_cache(analysis_date, 'basic', response_dict)
         db.commit()
         
-        print(f"✅ Saved analysis to cache for {analysis_date}")
+        if hard_refresh:
+            print(f"✅ Hard refresh complete: Archived old predictions, generated new analysis, and updated cache for {analysis_date}")
+        else:
+            print(f"✅ Saved analysis to cache for {analysis_date}")
         
         return response
     

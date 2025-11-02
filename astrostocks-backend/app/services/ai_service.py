@@ -2,7 +2,11 @@
 AI Service Layer - Integrates Astrology Engine with AI Models
 Supports DeepSeek API for market predictions
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+    from app.models.models import Sector
 from datetime import datetime
 import os
 import json
@@ -187,54 +191,212 @@ class AIService:
     
     def analyze_market(
         self, 
-        stocks: List[Dict[str, Any]], 
-        transits: List[Dict[str, Any]]
+        stocks: Optional[List[Dict[str, Any]]] = None, 
+        transits: Optional[List[Dict[str, Any]]] = None,
+        db: Optional['Session'] = None
     ) -> Dict[str, Any]:
         """
         Main analysis function combining astrology engine and AI reasoning
+        
+        Args:
+            stocks: Optional list of stock data (if None, will predict all sectors)
+            transits: Planetary transit data
+            db: Database session for fetching stocks and sectors
         """
-        # Step 1: Get astrological sector influences
-        sector_influences = self.astrology_engine.analyze_sector_influences(transits)
+        from app.models.models import Sector, Stock
+        from app.database.config import SessionLocal
         
-        # Step 2: Map astrology sectors to database sectors
-        sector_mapper = SectorMapper()
-        db_sector_influences = sector_mapper.map_sector_influences_to_db_sectors(sector_influences)
+        # Get database session if not provided
+        if db is None:
+            db = SessionLocal()
+            close_db = True
+        else:
+            close_db = False
         
-        # Step 3: Generate predictions for each database sector
-        sector_predictions = []
-        
-        for db_sector, influences in db_sector_influences.items():
-            # Get prediction using the database sector name
-            prediction = self.astrology_engine.get_sector_prediction(db_sector.name, influences)
+        try:
+            # Step 1: Get astrological sector influences
+            if transits is None:
+                from app.services.ephemeris_service import get_planetary_transits
+                transits = get_planetary_transits()
             
-            # Add top stocks for this sector
-            top_stocks = self._get_top_stocks_by_sector(db_sector.name, stocks)
+            sector_influences = self.astrology_engine.analyze_sector_influences(transits)
             
-            # Enhance with AI reasoning
-            enhanced_prediction = self._enhance_with_ai_reasoning(
-                prediction, 
-                influences,
-                top_stocks
-            )
+            # Step 2: Get all database sectors (predict for all, not just from stocks)
+            sector_mapper = SectorMapper(db)
+            all_db_sectors = sector_mapper.get_all_database_sectors()
             
-            # Add database sector ID for reference
-            enhanced_prediction['sector_id'] = db_sector.id
-            enhanced_prediction['sector_name'] = db_sector.name
+            # Step 3: Generate predictions for each database sector
+            sector_predictions = []
             
-            sector_predictions.append(enhanced_prediction)
+            for db_sector in all_db_sectors:
+                # Find influences for this sector
+                influences = []
+                
+                # Try to find influences from astrology engine sectors that map to this DB sector
+                for astro_sector, astro_influences in sector_influences.items():
+                    mapped_sector = sector_mapper.map_to_database_sector(astro_sector)
+                    if mapped_sector and mapped_sector.id == db_sector.id:
+                        influences.extend(astro_influences)
+                
+                # If no influences found, still generate prediction
+                if not influences:
+                    # Get base influences from planetary transits
+                    for transit in transits:
+                        planet = transit.get("planet")
+                        sign = transit.get("sign")
+                        if planet and sign:
+                            influences.append({
+                                "planet": planet,
+                                "sign": sign,
+                                "strength": transit.get("status", "Normal"),
+                                "influence_type": "Neutral",
+                                "qualities": []
+                            })
+                
+                # Get prediction using the database sector name
+                prediction = self.astrology_engine.get_sector_prediction(db_sector.name, influences)
+                
+                # Get top stocks for this sector from database
+                top_stocks = []
+                if db:
+                    sector_stocks = db.query(Stock).filter(Stock.sector_id == db_sector.id).limit(5).all()
+                    top_stocks = [stock.symbol for stock in sector_stocks]
+                
+                # Fallback to provided stocks if no DB stocks found
+                if not top_stocks and stocks:
+                    top_stocks = self._get_top_stocks_by_sector(db_sector.name, stocks)
+                
+                # Enhance with AI reasoning
+                enhanced_prediction = self._enhance_with_ai_reasoning(
+                    prediction, 
+                    influences,
+                    top_stocks
+                )
+                
+                # Add database sector ID for reference
+                enhanced_prediction['sector_id'] = db_sector.id
+                enhanced_prediction['sector_name'] = db_sector.name
+                
+                # Add timing information based on transits
+                # Get individual planet transit timings
+                # Pass planetary_influence text to extract all mentioned planets
+                planetary_influence_text = enhanced_prediction.get('planetary_influence', '')
+                transit_times = self._get_transit_timing_for_sector(
+                    db_sector, 
+                    transits, 
+                    sector_mapper,
+                    planetary_influence_text=planetary_influence_text
+                )
+                if transit_times:
+                    # Store individual planet transits
+                    enhanced_prediction['planet_transits'] = transit_times.get('planet_transits', [])
+                    # Keep aggregated start/end for backward compatibility
+                    enhanced_prediction['transit_start'] = transit_times.get('start')
+                    enhanced_prediction['transit_end'] = transit_times.get('end')
+                
+                sector_predictions.append(enhanced_prediction)
+            
+            # Step 4: Determine overall market sentiment
+            overall_sentiment = self._calculate_overall_sentiment(sector_predictions)
+            
+            # Step 5: Calculate accuracy estimate
+            accuracy = self._calculate_accuracy_estimate(transits)
+            
+            return {
+                "sector_predictions": sector_predictions,
+                "overall_market_sentiment": overall_sentiment,
+                "accuracy_estimate": accuracy,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        finally:
+            if close_db and db:
+                db.close()
+    
+    def _get_transit_timing_for_sector(self, sector: 'Sector', transits: List[Dict[str, Any]], sector_mapper: Any = None, planetary_influence_text: str = None) -> Optional[Dict[str, Any]]:
+        """Get transit timing for sectors based on affecting transits - returns individual planet transits"""
+        if not transits:
+            return None
         
-        # Step 4: Determine overall market sentiment
-        overall_sentiment = self._calculate_overall_sentiment(sector_predictions)
+        # Track which planets affect this sector
+        affecting_planets = set()
         
-        # Step 5: Calculate accuracy estimate
-        accuracy = self._calculate_accuracy_estimate(transits)
+        # Method 1: Extract planets from planetary_influence text if provided
+        # This catches all planets mentioned in strings like "Jupiter in Cancer, Rahu in Aquarius"
+        if planetary_influence_text:
+            import re
+            # Known planets list (order matters - check longer names first)
+            planet_names = ["Jupiter", "Mercury", "Saturn", "Venus", "Mars", "Rahu", "Ketu", "Sun", "Moon"]
+            for planet in planet_names:
+                # Look for planet name in the text (case-insensitive, word boundary)
+                if re.search(rf'\b{re.escape(planet)}\b', planetary_influence_text, re.IGNORECASE):
+                    affecting_planets.add(planet)
         
-        return {
-            "sector_predictions": sector_predictions,
-            "overall_market_sentiment": overall_sentiment,
-            "accuracy_estimate": accuracy,
-            "timestamp": datetime.utcnow().isoformat()
+        # Method 2: Find transits that affect this sector through sector influences (fallback)
+        # If we didn't find planets in text, use sector mapping
+        if not affecting_planets:
+            sector_influences = self.astrology_engine.analyze_sector_influences(transits)
+            
+            # Use provided mapper or create new one
+            if sector_mapper is None:
+                from app.services.sector_mapper import SectorMapper
+                sector_mapper = SectorMapper()
+            
+            for astro_sector, influences in sector_influences.items():
+                mapped = sector_mapper.map_to_database_sector(astro_sector)
+                if mapped and mapped.id == sector.id:
+                    # Collect all planets affecting this sector
+                    for inf in influences:
+                        planet = inf.get("planet")
+                        if planet:
+                            affecting_planets.add(planet)
+        
+        if not affecting_planets:
+            return None
+        
+        # Get transit data for each affecting planet
+        planet_transits = []
+        # Create a map of planet -> transit for quick lookup
+        transit_map = {t.get("planet"): t for t in transits if t.get("planet")}
+        
+        for planet in affecting_planets:
+            transit = transit_map.get(planet)
+            if transit:
+                planet_transit = {
+                    "planet": planet,
+                    "sign": transit.get("sign"),
+                    "transit_start": transit.get("transit_start"),
+                    "transit_end": transit.get("transit_end"),
+                    "status": transit.get("status") or transit.get("dignity", "Normal"),
+                    "motion": transit.get("motion", "Direct")
+                }
+                planet_transits.append(planet_transit)
+        
+        if not planet_transits:
+            return None
+        
+        # Calculate overall earliest start and latest end for backward compatibility
+        starts = [pt.get("transit_start") for pt in planet_transits if pt.get("transit_start")]
+        ends = [pt.get("transit_end") for pt in planet_transits if pt.get("transit_end")]
+        
+        result = {
+            "planet_transits": planet_transits
         }
+        
+        # Add aggregated start/end if available
+        if starts and ends:
+            try:
+                from dateutil import parser
+                start_dates = [parser.parse(s) for s in starts if s]
+                end_dates = [parser.parse(e) for e in ends if e]
+                
+                if start_dates and end_dates:
+                    result["start"] = min(start_dates).isoformat()
+                    result["end"] = max(end_dates).isoformat()
+            except Exception as e:
+                print(f"Error parsing transit dates: {e}")
+                pass
+        
+        return result
     
     def _enhance_with_ai_reasoning(
         self, 
