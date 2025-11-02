@@ -56,6 +56,15 @@ class TransitBase(BaseModel):
     motion: Optional[str] = None
     status: Optional[str] = None
     date: date
+    longitude: Optional[float] = None
+    latitude: Optional[float] = None
+    degree_in_sign: Optional[float] = None
+    retrograde: Optional[str] = None
+    speed: Optional[float] = None
+    dignity: Optional[str] = None
+    nakshatra: Optional[str] = None
+    transit_start: Optional[str] = None
+    transit_end: Optional[str] = None
 
 
 class TransitCreate(TransitBase):
@@ -64,6 +73,8 @@ class TransitCreate(TransitBase):
 
 class Transit(TransitBase):
     id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -209,4 +220,23 @@ class PredictResponse(BaseModel):
     market_prediction: MarketPrediction
     past_market_data: Optional[List[Dict[str, Any]]] = None
     confidence: float
+
+
+class TransitRequest(BaseModel):
+    """Request schema for transit API"""
+    date: Optional[str] = Field(
+        None,
+        description="Date in YYYY-MM-DD format. If not provided, uses current date."
+    )
+
+
+class TransitResponse(BaseModel):
+    """Response schema for transit API"""
+    date: str
+    transits: List[PlanetaryTransit]
+    cached: bool = Field(
+        False,
+        description="Whether this data was retrieved from cache"
+    )
+    timestamp: datetime
 

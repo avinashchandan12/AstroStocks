@@ -59,6 +59,26 @@ class Transit(Base):
     motion = Column(String(20))
     status = Column(String(20))
     date = Column(Date, nullable=False, index=True)
+    
+    # Additional transit data for full planetary transit information
+    longitude = Column(Float)
+    latitude = Column(Float)
+    degree_in_sign = Column(Float)
+    retrograde = Column(String(10))  # Store as string for boolean representation
+    speed = Column(Float)
+    dignity = Column(String(20))
+    nakshatra = Column(String(50))
+    transit_start = Column(String(100))  # ISO datetime string
+    transit_end = Column(String(100))  # ISO datetime string
+    
+    # Metadata for caching
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Unique constraint: one transit record per planet per date
+    __table_args__ = (
+        UniqueConstraint('date', 'planet', name='uq_transit_date_planet'),
+    )
 
 
 class SectorPrediction(Base):

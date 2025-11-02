@@ -4,7 +4,7 @@ FastAPI backend combining Vedic Astrology with Stock Market Analytics
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import analyze, data, market, predict, sectors
+from app.api.routes import analyze, data, market, predict, sectors, transits
 from app.database.config import engine, Base
 
 # Initialize FastAPI app
@@ -31,6 +31,7 @@ app.include_router(data.router)
 app.include_router(market.router)
 app.include_router(predict.router)
 app.include_router(sectors.router)
+app.include_router(transits.router)
 
 
 @app.get("/")

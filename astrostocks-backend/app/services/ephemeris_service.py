@@ -398,7 +398,7 @@ class EphemerisService:
     def format_for_api(self, positions: List[Dict[str, Any]], dt: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """
         Format planetary positions for API compatibility with transit timing
-        Matches the format expected by astrology_engine
+        Matches the format expected by astrology_engine and PlanetaryTransit schema
         """
         if dt is None:
             dt = datetime.utcnow()
@@ -414,9 +414,14 @@ class EphemerisService:
                 "sign": pos["sign"],
                 "motion": pos["motion"],
                 "status": pos["dignity"],
+                "dignity": pos["dignity"],
                 "date": dt.date().isoformat(),
                 "longitude": pos["longitude"],
-                "nakshatra": self.get_nakshatra(pos["longitude"])["name"] if pos["planet"] == "Moon" else None,
+                "latitude": pos.get("latitude", 0.0),
+                "degree_in_sign": pos.get("degree_in_sign", 0.0),
+                "retrograde": pos.get("retrograde", False),
+                "speed": pos.get("speed", 0.0),
+                "nakshatra": self.get_nakshatra(pos["longitude"])["name"],  # All planets have nakshatras
                 "transit_start": transit_start.isoformat() if transit_start else None,
                 "transit_end": transit_end.isoformat() if transit_end else None
             })

@@ -42,6 +42,13 @@ export interface PlanetaryTransit {
   transit_end?: string // ISO datetime when planet will leave sign
 }
 
+export interface TransitResponse {
+  date: string
+  transits: PlanetaryTransit[]
+  cached: boolean
+  timestamp: string
+}
+
 export interface KeyInfluence {
   planet: string
   sign: string
